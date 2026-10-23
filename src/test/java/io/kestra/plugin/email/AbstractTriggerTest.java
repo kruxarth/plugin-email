@@ -1,5 +1,6 @@
 package io.kestra.plugin.email;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
@@ -49,6 +50,18 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
         message.setSubject(subject);
         message.setText(body);
         greenMail.getUserManager().getUser("test@localhost").deliver(message);
+    }
+
+    protected void appendTestEmail(String subject, String from, String body, Date date) throws Exception {
+        var message = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        message.setFrom(new InternetAddress(from));
+        message.addRecipient(Message.RecipientType.TO, new InternetAddress("test@localhost"));
+        message.setSubject(subject);
+        message.setText(body);
+        message.setSentDate(date);
+
+        var user = greenMail.getUserManager().getUser("test@localhost");
+        greenMail.getManagers().getImapHostManager().getInbox(user).appendMessage(message, new Flags(), date);
     }
 
     protected void sendTestEmailWithAttachment(String subject, String from, String body, String attachmentFilename,

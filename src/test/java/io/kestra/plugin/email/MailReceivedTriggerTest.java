@@ -3,6 +3,9 @@ package io.kestra.plugin.email;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -61,10 +64,15 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
                 "Email With Oversized Attachment", "sender4@example.com", "Oversized attachment body",
                 OVERSIZED_ATTACHMENT_FILENAME, OVERSIZED_ATTACHMENT_CONTENT.getBytes(StandardCharsets.UTF_8)
             );
-        } else if (testName.equals("everyEmailOfABurstIsReturned")) {
+        } else if (testName.equals("everyEmailOfABurstIsReturned") || testName.equals("everyEmailOfABurstIsReturnedWithPop3")) {
             for (int i = 1; i <= BURST_SIZE; i++) {
                 sendTestEmail("Burst Email " + i, "sender5@example.com", "Burst email body " + i);
             }
+        } else if (testName.equals("burstIsReturnedWhenTheNewestMessageHasAnOlderDate")) {
+            for (int i = 1; i <= BURST_SIZE; i++) {
+                sendTestEmail("Burst Email " + i, "sender5@example.com", "Burst email body " + i);
+            }
+            appendTestEmail("Old Email", "sender6@example.com", "Old email body", Date.from(Instant.now().minus(Duration.ofHours(1))));
         } else {
             sendTestEmail("First Email", "sender1@example.com", "First test email body");
         }
@@ -222,6 +230,29 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         var emails = (List<Map<String, Object>>) triggerVars.get("emails");
         assertThat(
             "Emails should be returned oldest first",
+            emails.stream().map(email -> email.get("subject")).toList(),
+            is(IntStream.rangeClosed(1, BURST_SIZE).mapToObj(i -> "Burst Email " + i).toList())
+        );
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-pop3.yaml", triggerId = "pop3-mail-trigger")
+    void everyEmailOfABurstIsReturnedWithPop3(Optional<Execution> optionalExecution) {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        Map<String, Object> triggerVars = optionalExecution.get().getTrigger().getVariables();
+        assertThat("Every email of the burst should be returned", triggerVars.get("total"), is(BURST_SIZE));
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
+    void burstIsReturnedWhenTheNewestMessageHasAnOlderDate(Optional<Execution> optionalExecution) {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) optionalExecution.get().getTrigger().getVariables().get("emails");
+        assertThat(
+            "An older message among the newest ones should neither be returned nor end the scan",
             emails.stream().map(email -> email.get("subject")).toList(),
             is(IntStream.rangeClosed(1, BURST_SIZE).mapToObj(i -> "Burst Email " + i).toList())
         );
