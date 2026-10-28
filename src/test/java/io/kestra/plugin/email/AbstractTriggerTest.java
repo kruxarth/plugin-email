@@ -1,5 +1,6 @@
 package io.kestra.plugin.email;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
@@ -40,6 +41,10 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
     }
 
     protected void sendTestEmail(String subject, String from, String body) throws MessagingException {
+        sendTestEmail(subject, from, body, null);
+    }
+
+    protected void sendTestEmail(String subject, String from, String body, Date sentDate) throws MessagingException {
         var props = new Properties();
         var session = Session.getDefaultInstance(props);
 
@@ -48,6 +53,9 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
         message.addRecipient(Message.RecipientType.TO, new InternetAddress("test@localhost"));
         message.setSubject(subject);
         message.setText(body);
+        if (sentDate != null) {
+            message.setSentDate(sentDate);
+        }
         greenMail.getUserManager().getUser("test@localhost").deliver(message);
     }
 

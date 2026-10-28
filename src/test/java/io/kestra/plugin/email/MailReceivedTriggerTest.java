@@ -3,6 +3,9 @@ package io.kestra.plugin.email;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -64,6 +67,14 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         } else if (testName.equals("everyEmailOfABurstIsReturned")) {
             for (int i = 1; i <= BURST_SIZE; i++) {
                 sendTestEmail("Burst Email " + i, "sender5@example.com", "Burst email body " + i);
+            }
+        } else if (testName.equals("newEmailsAfterAnOlderOneAreReturned")) {
+            for (int i = 1; i <= 2; i++) {
+                sendTestEmail("New Email " + i, "sender6@example.com", "New email body " + i, new Date());
+            }
+            sendTestEmail("Delayed Email", "sender6@example.com", "Delayed email body", Date.from(Instant.now().minus(Duration.ofDays(1))));
+            for (int i = 3; i <= 12; i++) {
+                sendTestEmail("New Email " + i, "sender6@example.com", "New email body " + i, new Date());
             }
         } else {
             sendTestEmail("First Email", "sender1@example.com", "First test email body");
@@ -224,6 +235,20 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             "Emails should be returned oldest first",
             emails.stream().map(email -> email.get("subject")).toList(),
             is(IntStream.rangeClosed(1, BURST_SIZE).mapToObj(i -> "Burst Email " + i).toList())
+        );
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-pop3-out-of-order.yaml", triggerId = "pop3-mail-trigger")
+    void newEmailsAfterAnOlderOneAreReturned(Optional<Execution> optionalExecution) {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) optionalExecution.get().getTrigger().getVariables().get("emails");
+        assertThat(
+            "New emails delivered before an older-dated one should still be returned",
+            emails.stream().map(email -> email.get("subject")).toList(),
+            is(IntStream.rangeClosed(1, 12).mapToObj(i -> "New Email " + i).toList())
         );
     }
 }
